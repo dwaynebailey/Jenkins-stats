@@ -276,7 +276,7 @@ class JenkinsGet:
                 param_str += '%s=%s&' % (i, j)
             param_str = param_str[:-1]
 
-        result = subprocess.check_call(['wget', '--load-cookies', 'cookies.txt',
+        result = subprocess.check_call(['wget', '--no-verbose', '--load-cookies', 'cookies.txt',
                                         '--output-document', str(r.file[1]),
                                         str(url) + param_str])
         if result == 0:

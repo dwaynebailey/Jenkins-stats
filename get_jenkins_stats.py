@@ -49,7 +49,7 @@ from plotly import graph_objs as go
 import requests
 import sys
 import time
-    
+
 LOCK_RETRIES = 10
 RETRY_SLEEP_SEC = 5
 

@@ -47,7 +47,6 @@ from datetime import datetime, timedelta
 import jinja2
 import pandas as pd
 import plotly
-import requests
 from plotly import graph_objs as go
 
 LOCK_RETRIES = 10
@@ -309,6 +308,39 @@ def builds_to_dataframe(builds):
     return df
 
 
+class Result:
+
+    ok = None
+    file = None
+
+    def json(self):
+        return json.load(open(self.file[1]))
+
+
+class JenkinsGet:
+
+    def get(self, url, params=None, verify=None):
+        from tempfile import mkstemp
+        import subprocess
+        r = Result()
+        r.file = mkstemp(suffix='.json')
+        r.ok = False
+        param_str = ''
+
+        if params:
+            param_str = '?'
+            for i, j in params.iteritems():
+                param_str += '%s=%s&' % (i, j)
+            param_str = param_str[:-1]
+
+        result = subprocess.check_call(['wget', '--load-cookies', 'cookies.txt',
+                                        '--output-document', str(r.file[1]),
+                                        str(url) + param_str])
+        if result == 0:
+            r.ok = True
+        return r
+
+
 def get_builds(args, data_file):
     # read from data_file if it exists, create new one if it doesn't
     builds = dict()
@@ -342,7 +374,7 @@ def get_builds(args, data_file):
                                               args.jenkins_job)
 
     log.debug('Retrieving jenkins data from %s', jenkins_url)
-    session = requests.Session()
+    session = JenkinsGet()
     r = session.get(jenkins_url, params=payload,
                     verify=args.verify_https_requests)
     if not r.ok:

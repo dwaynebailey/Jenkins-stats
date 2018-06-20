@@ -125,7 +125,7 @@ def main():
         lock = open(lock_file, 'r+')
     else:
         lock = open(lock_file, 'w')
-    for attempt in xrange(1, LOCK_RETRIES + 1):
+    for attempt in range(1, LOCK_RETRIES + 1):
         log.debug('Locking attempt %d of %d', attempt, LOCK_RETRIES)
         try:
             fcntl.lockf(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)

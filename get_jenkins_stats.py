@@ -464,7 +464,7 @@ def plot_status(df):
         y=df['total'],
         name='Jobs',
         yaxis='y2',
-        marker = dict(
+        marker=dict(
             color='#1b689d'
         )
     )

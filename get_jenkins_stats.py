@@ -62,9 +62,13 @@ def main():
     parser.set_defaults(
             script_dir=os.path.abspath((os.path.dirname(script_name))))
     parser.add_argument('-s', '--server', dest='jenkins_url',
-                        default=os.getenv('JENKINS_URL', ''))
+                        default=os.getenv('JENKINS_URL', ''),
+                        help='Jenkins server URL (or set JENKINS_URL environment variable)',
+                        required=True)
     parser.add_argument('-j', '--job', dest='jenkins_job',
-                        default=os.getenv('JENKINS_JOB', ''))
+                        default=os.getenv('JENKINS_JOB', ''),
+                        help='Jenkins job (or set JENKINS_JOB environment variable)',
+                        required=True)
     parser.add_argument('-o', '--output-dir', dest='output_dir',
                         default='/var/www/html/jenkins/stats/',
                         help='Path to output files to (def: %(default)s).')
@@ -95,15 +99,6 @@ def main():
                         help='Do not write log output to file.')
     args = parser.parse_args()
     configure_logging(args)
-
-    if not args.jenkins_job:
-        log.critical('No jenkins job specified, must provide -j/--job or set '
-                     'JENKINS_JOB env var')
-        exit(1)
-    elif not args.jenkins_url:
-        log.critical('No jenkins server specified, must provide -s/--server '
-                     'or set JENKINS_URL env var')
-        exit(1)
 
     # enable logging multiple columns in output
     pd.set_option('display.width', 1000)

@@ -75,8 +75,7 @@ def main():
                         type=int, default=336,
                         help='Range for report in hours (def: %(default)s).')
     parser.add_argument('-t', '--html-template', dest='html_template',
-                        default=os.path.join(parser.get_default('script_dir'),
-                                             'jenkins_stats.html.j2'),
+                        default='jenkins_stats.html',
                         help='Jinja2 template to use for html reports '
                              '(def: %(default)s).')
     parser.add_argument('-v', '--verbose', dest='log_verbosely',
@@ -164,9 +163,11 @@ def write_html(args, dir_path, html):
 
 
 def generate_html(args, df_overall_stats, slave_stats):
-    with open(args.html_template, 'r') as f:
-        html_template = f.read()
-    template = jinja2.Template(html_template)
+    env = jinja2.Environment(
+        loader=jinja2.FileSystemLoader('.'),
+        autoescape=False
+    )
+    template = env.get_template(args.html_template)
     if args.range_hours <= 24:
         report_units = '%d hours' % args.range_hours
     else:

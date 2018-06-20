@@ -71,9 +71,6 @@ def main():
     parser.add_argument('-o', '--output-dir', dest='output_dir',
                         default='/var/www/html/jenkins/stats/',
                         help='Path to output files to (default: %(default)s).')
-    parser.add_argument('-k', '--secure', dest='verify_https_requests',
-                        action='store_true',
-                        help='Verify https requests (default: %(default)s).')
     parser.add_argument('-r', '--report-range-hours', dest='range_hours',
                         type=int, default=336,
                         help='Range for report in hours (default: %(default)s).')
@@ -375,8 +372,7 @@ def get_builds(args, data_file):
 
     log.debug('Retrieving jenkins data from %s', jenkins_url)
     session = JenkinsGet()
-    r = session.get(jenkins_url, params=payload,
-                    verify=args.verify_https_requests)
+    r = session.get(jenkins_url, params=payload)
     if not r.ok:
         log.critical("Failed to fetch from %s", jenkins_url)
         exit(1)
@@ -396,7 +392,7 @@ def get_builds(args, data_file):
         log.debug('Retrieving record for build %d', number)
         jenkins_url = '%s/job/%s/%s/api/json' % (args.jenkins_url,
                                                  args.jenkins_job, number)
-        r = session.get(jenkins_url, verify=args.verify_https_requests)
+        r = session.get(jenkins_url)
         build_data = r.json()
         result = build_data['result']
         duration = build_data['duration']

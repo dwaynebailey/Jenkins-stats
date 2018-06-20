@@ -36,19 +36,19 @@ to make JSONL readable for debugging
 """
 
 import argparse
-from datetime import datetime
-from datetime import timedelta
 import fcntl
-import jinja2
 import json
 import logging
 import os
-import pandas as pd
-import plotly
-from plotly import graph_objs as go
-import requests
 import sys
 import time
+from datetime import datetime, timedelta
+
+import jinja2
+import pandas as pd
+import plotly
+import requests
+from plotly import graph_objs as go
 
 LOCK_RETRIES = 10
 RETRY_SLEEP_SEC = 5

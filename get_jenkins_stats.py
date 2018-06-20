@@ -71,17 +71,17 @@ def main():
                         required=True)
     parser.add_argument('-o', '--output-dir', dest='output_dir',
                         default='/var/www/html/jenkins/stats/',
-                        help='Path to output files to (def: %(default)s).')
+                        help='Path to output files to (default: %(default)s).')
     parser.add_argument('-k', '--secure', dest='verify_https_requests',
                         action='store_true',
-                        help='Verify https requests (def: %(default)s).')
+                        help='Verify https requests (default: %(default)s).')
     parser.add_argument('-r', '--report-range-hours', dest='range_hours',
                         type=int, default=336,
-                        help='Range for report in hours (def: %(default)s).')
+                        help='Range for report in hours (default: %(default)s).')
     parser.add_argument('-t', '--html-template', dest='html_template',
                         default='jenkins_stats.html',
                         help='Jinja2 template to use for html reports '
-                             '(def: %(default)s).')
+                             '(default: %(default)s).')
     parser.add_argument('-v', '--verbose', dest='log_verbosely',
                         action='store_true',
                         help='Show DEBUG level log output.')
@@ -91,7 +91,7 @@ def main():
     parser.add_argument('-l', '--logfile',
                         help='''
                         Name of the file to log messages to
-                        (def: %(default)s).
+                        (default: %(default)s).
                         ''',
                         default='%s.log' %
                         os.path.splitext(os.path.basename(script_name))[0])

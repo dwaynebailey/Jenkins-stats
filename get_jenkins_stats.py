@@ -222,8 +222,7 @@ def builds_to_dataframe(builds):
     build_data['failure'] = list()
     build_data['aborted'] = list()
     build_data['duration_sec'] = list()
-    for number in builds:
-        build = builds[number]
+    for number, build in builds.items():
 
         # time, success, failure, aborted, duration
         success, failure, aborted = False, False, False
@@ -273,7 +272,7 @@ class JenkinsGet:
 
         if params:
             param_str = '?'
-            for i, j in params.iteritems():
+            for i, j in params.items():
                 param_str += '%s=%s&' % (i, j)
             param_str = param_str[:-1]
 

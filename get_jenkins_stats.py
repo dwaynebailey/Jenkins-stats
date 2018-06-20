@@ -203,7 +203,7 @@ def generate_overall_build_stats(args, df, start_dt):
     df_stats['duration_sec_max'] = df.duration_sec.resample(sample_window).max()
     df_stats['duration_sec_avg'] = df.duration_sec.resample(
         sample_window).mean()
-    df_success = df[df['success'] == True]
+    df_success = df[df['success']]
     df_stats['success_duration_min_avg'] = df_success.duration_sec.resample(
         sample_window).mean() / 60
     # resample doesn't currently support percentile
@@ -248,7 +248,7 @@ def generate_per_slave_stats(args, df, start_dt):
         df_stats['duration_sec_max'] = df_slave.duration_sec.resample(sample_window).max()
         df_stats['duration_sec_avg'] = df_slave.duration_sec.resample(
             sample_window).mean()
-        df_success = df_slave[df_slave['success'] == True]
+        df_success = df_slave[df_slave['success']]
         df_stats['success_duration_min_avg'] = df_success.duration_sec.resample(
             sample_window).mean() / 60
         # resample doesn't currently support percentile

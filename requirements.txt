@@ -4,7 +4,7 @@ decorator==4.1.2
 enum34==1.1.6
 extras==1.0.0
 fixtures==3.0.0
-functools32==3.2.3.post2
+functools32==3.2.3.post2; python_version < '3'
 idna==2.6
 ipython-genutils==0.2.0
 Jinja2==2.9.6

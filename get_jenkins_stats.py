@@ -379,18 +379,6 @@ def get_builds(args, data_file):
         change_url = None
         queue = None
 
-        # Settings used only by OpenStack Zuul
-        for param in build_data['actions'][1].get('parameters', list()):
-            if param['name'] == 'ZUUL_BRANCH':
-                branch = param['value']
-            if param['name'] == 'ZUUL_CHANGE':
-                change_id = param['value']
-            if param['name'] == 'ZUUL_PROJECT':
-                project = param['value']
-            if param['name'] == 'ZUUL_PIPELINE':
-                queue = param['value']
-
-        # TODO reimplement to make this useful outside of Zuul
         if not queue:
             log.warn('Skipping build %s with null fields '
                      '(possibly manually triggered)', number)

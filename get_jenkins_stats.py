@@ -139,9 +139,8 @@ def main():
 
     df_builds = builds_to_dataframe(builds)
     df_overall_stats = generate_overall_build_stats(args, df_builds, start_dt)
-    slave_stats = generate_per_slave_stats(args, df_builds, start_dt)
 
-    html = generate_html(args, df_overall_stats, slave_stats)
+    html = generate_html(args, df_overall_stats)
     write_html(args, dir_path, html)
 
 
@@ -153,7 +152,7 @@ def write_html(args, dir_path, html):
     log.info('Wrote %s', file_path)
 
 
-def generate_html(args, df_overall_stats, slave_stats):
+def generate_html(args, df_overall_stats):
     env = jinja2.Environment(
         loader=jinja2.FileSystemLoader('.'),
         autoescape=False
@@ -166,9 +165,7 @@ def generate_html(args, df_overall_stats, slave_stats):
     html = template.render(
         title='%s for last %s' % (args.jenkins_job, report_units),
         status_plot=plot_status(df_overall_stats),
-        slave_status_plot=plot_slave_status(slave_stats),
         duration_plot=plot_duration(df_overall_stats),
-        slave_duration_plot=plot_slave_duration(slave_stats),
         timestamp_dt=datetime.now(),
         df_stats=df_overall_stats)
     return html
@@ -214,54 +211,6 @@ def generate_overall_build_stats(args, df, start_dt):
     return df_stats
 
 
-def generate_per_slave_stats(args, df, start_dt):
-    stats = dict()
-
-    for slave in df.slave.unique():
-        log.debug('Generating stats for %s', slave)
-        df_slave = df[df['slave'] == slave]
-        log.debug('df_slave (%s):\n%s\n', slave, df_slave)
-
-        # resample data for plots
-        # for 24 hours or less, use units of 1 hours, otherwise use units of 1 day
-        if args.range_hours <= 24:
-            sample_window = '1H'
-        else:
-            sample_window = '1D'
-        df_stats = pd.DataFrame()
-        # ignoring aborts from total and pct calc
-        df_stats['success'] = df_slave.success.resample(sample_window).sum()
-        df_stats['failure'] = df_slave.failure.resample(sample_window).sum()
-        df_stats['aborted'] = df_slave.aborted.resample(sample_window).sum()
-        df_stats['total'] = df_stats.success + df_stats.failure
-        df_stats['success_pct'] = df_stats.success / df_stats.total * 100
-        df_stats['failure_pct'] = df_stats.failure / df_stats.total * 100
-        df_stats['duration_sec_min'] = df_slave.duration_sec.resample(sample_window).min()
-        df_stats['duration_sec_max'] = df_slave.duration_sec.resample(sample_window).max()
-        df_stats['duration_sec_avg'] = df_slave.duration_sec.resample(
-            sample_window).mean()
-        df_success = df_slave[df_slave['success']]
-        df_stats['success_duration_min_avg'] = df_success.duration_sec.resample(
-            sample_window).mean() / 60
-        # resample doesn't currently support percentile
-        # (https://github.com/pandas-dev/pandas/issues/15023)
-        df_stats['success_duration_min_90th'] = df_success.duration_sec.groupby(
-            pd.Grouper(freq=sample_window)).quantile(0.9) / 60
-        df_stats['success_duration_min_50th'] = df_success.duration_sec.groupby(
-            pd.Grouper(freq=sample_window)).quantile(0.5) / 60
-        df_stats = df_stats.round(decimals=1)
-
-        # restrict to builds since start_dt
-        df_stats = df_stats[df_stats.index > start_dt]
-
-        df_stats.fillna(value=0, inplace=True)
-        log.debug('df_stats for %s:\n%s\n', slave, df_stats)
-
-        stats[slave] = df_stats
-
-    return stats
-
-
 def builds_to_dataframe(builds):
     """
     Convert builds data to pandas dataframe for subsequent analysis
@@ -273,7 +222,6 @@ def builds_to_dataframe(builds):
     build_data['failure'] = list()
     build_data['aborted'] = list()
     build_data['duration_sec'] = list()
-    build_data['slave'] = list()
     for number in builds:
         build = builds[number]
 
@@ -294,10 +242,9 @@ def builds_to_dataframe(builds):
         build_data['failure'].append(failure)
         build_data['aborted'].append(aborted)
         build_data['duration_sec'].append(build['duration_sec'])
-        build_data['slave'].append('')
     df = pd.DataFrame(build_data,
                       columns=['timestamp', 'success', 'failure', 'aborted',
-                               'duration_sec', 'slave'])
+                               'duration_sec'])
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df.index = df['timestamp']
     del df['timestamp']
@@ -422,7 +369,6 @@ def get_builds(args, data_file):
         # TODO remove hard-coding of url
         if change_id is not None:
             change_url = 'https://review.openstack.org/%s' % change_id
-        # build_slave = build_data['builtOn']
         build = {'number': number,
                  # 'project': project,
                  'branch': branch,
@@ -432,7 +378,6 @@ def get_builds(args, data_file):
                  'start_time': build_time,
                  'end_time': build_end_time,
                  'duration_sec': build_duration_sec,
-                 # 'slave': build_slave,
                  'queue': queue
                  }
         builds[number] = build
@@ -498,40 +443,6 @@ def plot_status(df):
     return plot
 
 
-def plot_slave_status(stats):
-    plot_title = 'Per-slave Failure rates'
-
-    # http://www.colorfavs.com/colors/f21b25/
-    shades_of_red = ['#160203', '#580a0d', '#9a1118', '#dc1922', '#fbc1c4',
-                     '#f88388', '#f4444d']
-    data = []
-    for slave in stats:
-        failure = go.Bar(
-            x=stats[slave].index,
-            y=stats[slave]['failure_pct'],
-            name=slave,
-            text=[('%d total jobs' % x) for x in stats[slave]['total']],
-            marker=dict(
-                color=shades_of_red.pop()
-            )
-        )
-        data.append(failure)
-
-    layout = go.Layout(
-        barmode='group',
-        title=plot_title,
-        xaxis=dict(tickformat="%d-%b-%Y", tickmode="linear"),
-        yaxis=dict(ticksuffix="%", range=[0, 100]),
-        legend=dict(orientation="h", x=0.02, y=1.15)
-    )
-    fig = go.Figure(data=data, layout=layout)
-    plot = plotly.offline.plot(fig,
-                               show_link=False,
-                               output_type='div',
-                               include_plotlyjs='False')
-    return plot
-
-
 def plot_duration(df):
     plot_title = 'Duration for successful jobs'
 
@@ -548,39 +459,6 @@ def plot_duration(df):
 
     data = [percentile50, percentile90]
     layout = go.Layout(
-        title=plot_title,
-        xaxis=dict(tickformat="%d-%b-%Y", tickmode="linear"),
-        yaxis=dict(ticksuffix=" min", range=[0, 40]),
-        legend=dict(orientation="h", x=0.02, y=1.15)
-    )
-    fig = go.Figure(data=data, layout=layout)
-    plot = plotly.offline.plot(fig,
-                               show_link=False,
-                               output_type='div',
-                               include_plotlyjs='False')
-    return plot
-
-
-def plot_slave_duration(stats):
-    plot_title = 'Per-slave Duration (90th percentile)'
-
-    # http://www.colorfavs.com/colors/318efb/
-    shades_of_blue = ['#040d17', '#12345b', '#1f5aa0', '#2d81e4', '#69adfc',
-                      '#a1ccfd', '#daeafe']
-    data = []
-    for slave in stats:
-        failure = go.Bar(
-            x=stats[slave].index,
-            y=stats[slave]['success_duration_min_90th'],
-            name=slave,
-            marker=dict(
-                color=shades_of_blue.pop()
-            )
-        )
-        data.append(failure)
-
-    layout = go.Layout(
-        barmode='group',
         title=plot_title,
         xaxis=dict(tickformat="%d-%b-%Y", tickmode="linear"),
         yaxis=dict(ticksuffix=" min", range=[0, 40]),

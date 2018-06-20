@@ -294,7 +294,7 @@ def builds_to_dataframe(builds):
         build_data['failure'].append(failure)
         build_data['aborted'].append(aborted)
         build_data['duration_sec'].append(build['duration_sec'])
-        build_data['slave'].append(build['slave'])
+        build_data['slave'].append('')
     df = pd.DataFrame(build_data,
                       columns=['timestamp', 'success', 'failure', 'aborted',
                                'duration_sec', 'slave'])
@@ -407,10 +407,10 @@ def get_builds(args, data_file):
         change_url = None
         queue = None
 
-        if not queue:
-            log.warn('Skipping build %s with null fields '
-                     '(possibly manually triggered)', number)
-            continue
+        # if not queue:
+        #     log.warn('Skipping build %s with null fields '
+        #              '(possibly manually triggered)', number)
+        #     continue
         timestamp = int(build_data['timestamp'])
         build_time = time.strftime('%Y-%m-%d %H:%M:%S',
                                    time.localtime(timestamp / 1000))
@@ -422,9 +422,9 @@ def get_builds(args, data_file):
         # TODO remove hard-coding of url
         if change_id is not None:
             change_url = 'https://review.openstack.org/%s' % change_id
-        build_slave = build_data['builtOn']
+        # build_slave = build_data['builtOn']
         build = {'number': number,
-                 'project': project,
+                 # 'project': project,
                  'branch': branch,
                  'change_id': change_id,
                  'change_url': change_url,
@@ -432,7 +432,7 @@ def get_builds(args, data_file):
                  'start_time': build_time,
                  'end_time': build_end_time,
                  'duration_sec': build_duration_sec,
-                 'slave': build_slave,
+                 # 'slave': build_slave,
                  'queue': queue
                  }
         builds[number] = build

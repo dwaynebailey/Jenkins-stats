@@ -402,10 +402,6 @@ def get_builds(args, data_file, project, job):
         change_url = None
         queue = None
 
-        # if not queue:
-        #     log.warn('Skipping build %s with null fields '
-        #              '(possibly manually triggered)', number)
-        #     continue
         timestamp = int(build_data['timestamp'])
         build_time = time.strftime('%Y-%m-%d %H:%M:%S',
                                    time.localtime(timestamp / 1000))
@@ -426,7 +422,6 @@ def get_builds(args, data_file, project, job):
                  'start_time': build_time,
                  'end_time': build_end_time,
                  'duration_sec': build_duration_sec,
-                 'queue': queue
                  }
         builds[number] = build
         new_builds.append(build)

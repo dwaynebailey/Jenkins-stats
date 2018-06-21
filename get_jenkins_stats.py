@@ -64,10 +64,12 @@ def main():
                         default=os.getenv('JENKINS_URL', ''),
                         help='Jenkins server URL (or set JENKINS_URL environment variable)',
                         required=True)
+    parser.add_argument('-p', '--project', dest='jenkins_project',
+                        default=os.getenv('JENKINS_PROJECT', ''),
+                        help='Jenkins project (or set JENKINS_PROJECT environment variable)')
     parser.add_argument('-j', '--job', dest='jenkins_job',
                         default=os.getenv('JENKINS_JOB', ''),
-                        help='Jenkins job (or set JENKINS_JOB environment variable)',
-                        required=True)
+                        help='Jenkins job (or set JENKINS_JOB environment variable)')
     parser.add_argument('-o', '--output-dir', dest='output_dir',
                         default='/var/www/html/jenkins/stats/',
                         help='Path to output files to (default: %(default)s).')
@@ -103,13 +105,38 @@ def main():
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
 
-    # lock the data-file before we do anything else, since we don't want
-    # another writer modifying the file after we've read but before we've
-    # written (this is all redundant if we use a db)
-    data_file = os.path.join(dir_path, '%s.json' % args.jenkins_job)
+    global lock_file
+
+    finish_dt = datetime.now()
+    start_dt = finish_dt - timedelta(hours=args.range_hours)
+    log.info('Reporting on jobs between %s and %s',
+             start_dt.strftime('%H:%M:%S %d-%b-%Y'),
+             finish_dt.strftime('%H:%M:%S %d-%b-%Y'))
+
+    projects = {}
+    for project in get_projects(args):
+        project_data_dir = os.path.join(dir_path, project)
+        projects[project] = {}
+        if not os.path.exists(project_data_dir):
+            os.makedirs(project_data_dir)
+        for job in get_jobs(args, project):
+            data_file = os.path.join(project_data_dir, '%s.json' % job)
+            # lock the data-file before we do anything else, since we don't want
+            # another writer modifying the file after we've read but before we've
+            # written (this is all redundant if we use a db)
+            create_lock(data_file)
+            projects[project][job] = get_builds(args, data_file, project, job)
+
+    df_builds = builds_to_dataframe(builds)
+    df_overall_stats = generate_overall_build_stats(args, df_builds, start_dt)
+
+    html = generate_html(args, df_overall_stats)
+    write_html(args, dir_path, html)
+
+
+def create_lock(data_file):
     global lock_file
     lock_file = '%s.lck' % data_file
-
     log.debug('Using lock file %s', lock_file)
     if os.path.exists(lock_file):
         lock = open(lock_file, 'r+')
@@ -129,19 +156,6 @@ def main():
     else:
         log.critical('Failed to lock file for write, aborting')
         exit(1)
-
-    finish_dt = datetime.now()
-    start_dt = finish_dt - timedelta(hours=args.range_hours)
-    log.info('Reporting on jobs between %s and %s',
-             start_dt.strftime('%H:%M:%S %d-%b-%Y'),
-             finish_dt.strftime('%H:%M:%S %d-%b-%Y'))
-    builds = get_builds(args, data_file)
-
-    df_builds = builds_to_dataframe(builds)
-    df_overall_stats = generate_overall_build_stats(args, df_builds, start_dt)
-
-    html = generate_html(args, df_overall_stats)
-    write_html(args, dir_path, html)
 
 
 def write_html(args, dir_path, html):
@@ -284,7 +298,45 @@ class JenkinsGet:
         return r
 
 
-def get_builds(args, data_file):
+def get_projects(args):
+    """Return a list of valid projects for the server"""
+    # https://build.platform.hmcts.net/job/HMCTS/api/json?tree=jobs[name,url]
+    payload = {'tree': 'jobs[name,url]'}
+    jenkins_url = '%s/api/json' % (args.jenkins_url)
+    log.debug('Retrieving projects from %s', jenkins_url)
+    session = JenkinsGet()
+    r = session.get(jenkins_url, params=payload)
+    if not r.ok:
+        log.critical("Failed to fetch from %s", jenkins_url)
+        exit(1)
+    jenkins_data = r.json()
+    projects = list()
+    for project in jenkins_data['jobs']:
+        if project['name'].startswith(args.jenkins_project):
+            projects.append(project['name'])
+    return projects
+
+
+def get_jobs(args, project):
+    """Return a list of valid jobs for a project"""
+    # https://build.platform.hmcts.net/job/HMCTS/job/ccd-data-store-api/api/json?tree=jobs[name,url]
+    payload = {'tree': 'jobs[name,url]'}
+    jenkins_url = '%s/job/%s/api/json' % (args.jenkins_url, project)
+    log.debug('Retrieving jobs from %s', jenkins_url)
+    session = JenkinsGet()
+    r = session.get(jenkins_url, params=payload)
+    if not r.ok:
+        log.critical("Failed to fetch from %s", jenkins_url)
+        exit(1)
+    jenkins_data = r.json()
+    jobs = []
+    for job in jenkins_data['jobs']:
+        if job['name'].lower().startswith(args.jenkins_job):
+            jobs.append(job['name'])
+    return jobs
+
+
+def get_builds(args, data_file, project, job):
     # read from data_file if it exists, create new one if it doesn't
     builds = dict()
 
@@ -302,15 +354,15 @@ def get_builds(args, data_file):
 
     log.info('Read %d builds from %s', len(builds), data_file)
 
-    jenkins_url = '%s/job/%s/api/json' % (args.jenkins_url,
-                                          args.jenkins_job)
+    jenkins_url = '%s/job/%s/job/%s/api/json' % (
+        args.jenkins_url, project, job)
     payload = {}
     if first_run:
         # If this is the first run for a job, pull all builds from Jenkins,
         # otherwise use the standard jenkins call which limits to 100 results
         # (the assumption is we're running regularly enough after the first run
         # that those 100 results is sufficient)
-        log.info('%s is a new job, querying all builds', args.jenkins_job)
+        log.info('%s is a new job, querying all builds', job)
         payload = {'tree': 'allBuilds[number]'}
 
     log.debug('Retrieving jenkins data from %s', jenkins_url)
@@ -333,8 +385,8 @@ def get_builds(args, data_file):
             log.debug('Already stored record for build %d', number)
             continue
         log.debug('Retrieving record for build %d', number)
-        jenkins_url = '%s/job/%s/%s/api/json' % (args.jenkins_url,
-                                                 args.jenkins_job, number)
+        jenkins_url = '%s/job/%s/job/%s/%s/api/json' % (
+            args.jenkins_url, project, job, number)
         r = session.get(jenkins_url)
         build_data = r.json()
         result = build_data['result']

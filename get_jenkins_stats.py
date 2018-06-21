@@ -127,7 +127,7 @@ def main():
             create_lock(data_file)
             projects[project][job] = get_builds(args, data_file, project, job)
 
-    df_builds = builds_to_dataframe(builds)
+    df_builds = projects_to_dataframe(projects)
     df_overall_stats = generate_overall_build_stats(args, df_builds, start_dt)
 
     html = generate_html(args, df_overall_stats)
@@ -225,9 +225,9 @@ def generate_overall_build_stats(args, df, start_dt):
     return df_stats
 
 
-def builds_to_dataframe(builds):
+def projects_to_dataframe(builds):
     """
-    Convert builds data to pandas dataframe for subsequent analysis
+    Convert build data to pandas dataframe for subsequent analysis
     """
 
     build_data = dict()

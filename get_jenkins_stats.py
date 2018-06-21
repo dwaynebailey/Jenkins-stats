@@ -397,10 +397,10 @@ def get_builds(args, data_file, project, job):
                 number, result, duration)
             continue
 
-        branch = None
-        change_id = None
-        change_url = None
-        queue = None
+        try:
+            change_hash = find_action(build_data['actions'], 'hudson.plugins.git.util.BuildData')[-1]['buildsByBranchName'][job]['revision']['SHA1']
+        except (KeyError, IndexError):
+            change_hash = None
 
         timestamp = int(build_data['timestamp'])
         build_time = time.strftime('%Y-%m-%d %H:%M:%S',
@@ -411,13 +411,10 @@ def get_builds(args, data_file, project, job):
                                        time.localtime(end_timestamp / 1000))
 
         # TODO remove hard-coding of url
-        if change_id is not None:
-            change_url = 'https://review.openstack.org/%s' % change_id
         build = {'number': number,
-                 # 'project': project,
-                 'branch': branch,
-                 'change_id': change_id,
-                 'change_url': change_url,
+                 'project': project,
+                 'branch': job,
+                 'change_hash': change_hash,
                  'result': result,
                  'start_time': build_time,
                  'end_time': build_end_time,

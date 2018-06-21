@@ -302,19 +302,16 @@ def get_builds(args, data_file):
 
     log.info('Read %d builds from %s', len(builds), data_file)
 
-    # If this is the first run for a job, pull all builds from Jenkins,
-    # otherwise use the standard jenkins call which limits to 100 results
-    # (the assumption is we're running regularly enough after the first run
-    # that those 100 results is sufficient)
+    jenkins_url = '%s/job/%s/api/json' % (args.jenkins_url,
+                                          args.jenkins_job)
+    payload = {}
     if first_run:
+        # If this is the first run for a job, pull all builds from Jenkins,
+        # otherwise use the standard jenkins call which limits to 100 results
+        # (the assumption is we're running regularly enough after the first run
+        # that those 100 results is sufficient)
         log.info('%s is a new job, querying all builds', args.jenkins_job)
         payload = {'tree': 'allBuilds[number]'}
-        jenkins_url = '%s/job/%s/api/json' % (args.jenkins_url,
-                                              args.jenkins_job)
-    else:
-        payload = {}
-        jenkins_url = '%s/job/%s/api/json' % (args.jenkins_url,
-                                              args.jenkins_job)
 
     log.debug('Retrieving jenkins data from %s', jenkins_url)
     session = JenkinsGet()

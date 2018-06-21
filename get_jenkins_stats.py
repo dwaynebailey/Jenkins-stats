@@ -439,6 +439,15 @@ def get_builds(args, data_file, project, job):
     return builds
 
 
+def find_action(actions, action_type):
+    """Extract the 'action_type' from an build['actions']"""
+    found_actions = []
+    for action in actions:
+        if '_class' in action and action['_class'] == action_type:
+            found_actions.append(action)
+    return found_actions
+
+
 def plot_status(df):
     plot_title = 'Success/Failure rates'
 

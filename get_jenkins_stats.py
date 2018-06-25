@@ -385,7 +385,7 @@ def get_branches(args, project):
     return branches
 
 
-def get_builds(args, data_file, project, job):
+def get_runs(args, data_file, project, branch):
     # read from data_file if it exists, create new one if it doesn't
     builds = dict()
 
@@ -394,7 +394,7 @@ def get_builds(args, data_file, project, job):
         with open(data_file, 'r') as f:
             for line in f:
                 build = json.loads(line)
-                number = build['number']
+                number = build['run']
                 log.debug('Read existing record for build %s', number)
                 builds[number] = build
     except (IOError, EOFError):
@@ -403,9 +403,10 @@ def get_builds(args, data_file, project, job):
 
     log.info('Read %d builds from %s', len(builds), data_file)
 
-    jenkins_url = '%s/job/%s/job/%s/api/json' % (
-        args.jenkins_url, project, job)
-    payload = {}
+    # https://build.platform.hmcts.net/blue/rest/organizations/jenkins/pipelines/HMCTS/pipelines/ccd-admin-web/branches/master/runs/
+    jenkins_url = '%s/blue/rest/organizations/jenkins/pipelines/HMCTS/pipelines/%s/branches/%s/' % (
+        args.jenkins_url, project, branch)
+    payload = {'tree': 'latestRun[id]'}
     if first_run:
         # If this is the first run for a job, pull all builds from Jenkins,
         # otherwise use the standard jenkins call which limits to 100 results
@@ -423,27 +424,21 @@ def get_builds(args, data_file, project, job):
     jenkins_data = r.json()
     new_builds = list()
 
-    if first_run:
-        jenkins_builds = jenkins_data['allBuilds']
-    else:
-        jenkins_builds = jenkins_data['builds']
-
-    for build in jenkins_builds:
-        number = build['number']
-        if number in builds:
-            log.debug('Already stored record for build %d', number)
+    for run in range(int(jenkins_data['latestRun']['id']), 0, -1):
+        if run in builds:
+            log.debug('Already stored record for run %d', run)
             continue
-        log.debug('Retrieving record for build %d', number)
-        jenkins_url = '%s/job/%s/job/%s/%s/api/json' % (
-            args.jenkins_url, project, job, number)
+        log.debug('Retrieving record for run %d', run)
+        jenkins_url = '%s/blue/rest/organizations/jenkins/pipelines/HMCTS/pipelines/%s/branches/%s/runs/%s/' % (
+            args.jenkins_url, project, branch, run)
         r = session.get(jenkins_url)
         build_data = r.json()
         result = build_data['result']
         duration = build_data['duration']
         if result is None or duration == 0:
             log.debug(
-                'Skipping unfinished build %s (result = %s, duration = %d)',
-                number, result, duration)
+                'Skipping unfinished run %s (result = %s, duration = %d)',
+                run, result, duration)
             continue
 
         try:
@@ -469,12 +464,12 @@ def get_builds(args, data_file, project, job):
                  'end_time': build_end_time,
                  'duration_sec': build_duration_sec,
                  }
-        builds[number] = build
+        builds[run] = build
         new_builds.append(build)
     if len(new_builds) > 0:
         with open(data_file, 'a') as f:
             for build in new_builds:
-                log.info('Storing new record for build %s', build['number'])
+                log.info('Storing new record for run %s', build['run'])
                 json.dump(build, f, separators=(',', ':'))
                 f.write('\n')
             log.debug('Wrote %d new results to data_file %s',
@@ -530,7 +525,7 @@ def plot_status(df):
         title=plot_title,
         xaxis=dict(tickformat="%d-%b-%Y", tickmode="linear"),
         yaxis=dict(ticksuffix="%", range=[0, 100]),
-        yaxis2=dict(title="Jobs", overlaying='y', side='right', range=[0, 200]),
+        yaxis2=dict(title="Runs", overlaying='y', side='right', range=[0, 100]),
         legend=dict(orientation="h", x=0.02, y=1.15)
     )
     fig = go.Figure(data=data, layout=layout)

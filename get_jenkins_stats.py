@@ -226,39 +226,80 @@ def generate_overall_build_stats(args, df, start_dt):
     return df_stats
 
 
-def projects_to_dataframe(builds):
+def projects_to_dataframe(projects):
     """
     Convert build data to pandas dataframe for subsequent analysis
     """
 
     build_data = dict()
     build_data['timestamp'] = list()
+    build_data['project'] = list()
+    build_data['branch'] = list()
     build_data['success'] = list()
     build_data['failure'] = list()
     build_data['aborted'] = list()
+    build_data['failure_node'] = list()
+    build_data['failure_infr'] = list()
+    build_data['failure_ours'] = list()
+    build_data['failure_other'] = list()
     build_data['duration_sec'] = list()
-    for number, build in builds.items():
 
-        # time, success, failure, aborted, duration
-        success, failure, aborted = False, False, False
-        if build['result'] == 'SUCCESS':
-            success = True
-        elif build['result'] == 'FAILURE':
-            failure = True
-        elif build['result'] == 'ABORTED':
-            aborted = True
-        else:
-            log.critical('Unknown status on build %s: %s', number,
-                         build['result'])
-            exit(1)
-        build_data['timestamp'].append(build['start_time'])
-        build_data['success'].append(success)
-        build_data['failure'].append(failure)
-        build_data['aborted'].append(aborted)
-        build_data['duration_sec'].append(build['duration_sec'])
-    df = pd.DataFrame(build_data,
-                      columns=['timestamp', 'success', 'failure', 'aborted',
-                               'duration_sec'])
+    for project_name, project in projects.items():
+        for branch_name, branch in project.items():
+            for number, build in branch.items():
+                # time, success, failure, aborted, duration
+                success, failure, aborted = False, False, False
+                if build['result'] == 'SUCCESS':
+                    success = True
+                elif build['result'] == 'FAILURE':
+                    failure = True
+                elif build['result'] == 'ABORTED':
+                    aborted = True
+                elif build['result'] in ('NOT_BUILT', 'UNKNOWN'):
+                    continue
+                else:
+                    log.critical('Unknown status on project %s, branch %s, run %s: %s',
+                                 project_name, branch_name, number, build['result'])
+                    exit(1)
+
+                build_data['timestamp'].append(build['start_time'])
+                build_data['project'].append(build['project'])
+                build_data['branch'].append(build['branch'])
+                build_data['success'].append(success)
+                build_data['failure'].append(failure)
+                build_data['aborted'].append(aborted)
+                build_data['failure_node'].append(build['failed_at'])
+                build_data['duration_sec'].append(build['duration_sec'])
+
+                infr, ours, other = False, False, False
+                override = failure_overrides(project, branch, number)
+                if (build['failed_at'] is None
+                        or override == 'other'):
+                    if failure:
+                        other = True
+                elif (build['failed_at'] in ()
+                      or build['failed_at'].startswith('Deploy -')
+                      or build['failed_at'].startswith('Promote -')
+                      or build['failed_at'].startswith('Build Infrastructure -')
+                      or override == 'infr'):
+                    infr = True
+                elif (build['failed_at'] in ('Build', 'Test', 'Sonar Scan', 'Security Checks')
+                      or build['failed_at'].startswith('Smoke Test -')
+                      or build['failed_at'].startswith('Functional Test -')
+                      or override == 'ours'):
+                    ours = True
+                else:
+                    log.critical('Unknown run node on project %s, branch %s, run %s: %s',
+                                 project_name, branch_name, number, build['failed_at'])
+                    exit(1)
+                build_data['failure_infr'].append(infr)
+                build_data['failure_ours'].append(ours)
+                build_data['failure_other'].append(other)
+
+    df = pd.DataFrame(
+        build_data,
+        columns=['timestamp', 'project', 'branch', 'success', 'failure', 'aborted', 'failure_node', 'failure_infr',
+                 'failure_ours', 'failure_other', 'duration_sec'])
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df.index = df['timestamp']
     del df['timestamp']
@@ -266,8 +307,14 @@ def projects_to_dataframe(builds):
     return df
 
 
-class Result:
+override_file = None
 
+
+def failure_overrides(project, branch, run):
+    return None
+
+
+class Result:
     ok = None
     file = None
 

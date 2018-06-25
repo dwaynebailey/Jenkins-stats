@@ -172,10 +172,9 @@ def generate_html(args, df_overall_stats):
         autoescape=False
     )
     template = env.get_template(args.html_template)
+    report_units = '%g days' % (args.range_hours / 24)
     if args.range_hours <= 24:
         report_units = '%d hours' % args.range_hours
-    else:
-        report_units = '%g days' % (args.range_hours / 24)
     html = template.render(
         title='%s for last %s' % (args.jenkins_job, report_units),
         status_plot=plot_status(df_overall_stats),
@@ -189,11 +188,9 @@ def generate_overall_build_stats(args, df, start_dt):
     log.debug('Generating overall stats')
 
     # resample data for plots
-    # for 24 hours or less, use units of 1 hours, otherwise use units of 1 day
+    sample_window = '1D'
     if args.range_hours <= 24:
         sample_window = '1H'
-    else:
-        sample_window = '1D'
     df_stats = pd.DataFrame()
     # ignoring aborts from total and pct calc
     df_stats['success'] = df.success.resample(sample_window).sum()
@@ -218,7 +215,8 @@ def generate_overall_build_stats(args, df, start_dt):
     df_stats = df_stats.round(decimals=1)
 
     # restrict to builds since start_dt
-    df_stats = df_stats[df_stats.index > start_dt]
+    if start_dt is not None:
+        df_stats = df_stats[df_stats.index > start_dt]
 
     df_stats.fillna(value=0, inplace=True)
     log.debug('df_stats:\n%s\n', df_stats)

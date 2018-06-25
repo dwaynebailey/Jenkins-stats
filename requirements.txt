@@ -1,7 +1,10 @@
+google-api-python-client
 Jinja2
+oauth2client
 pandas
 plotly
 
 # Development
 pycodestyle
 isort
+

@@ -414,12 +414,7 @@ def get_runs(args, data_file, project, branch):
         args.jenkins_url, project, branch)
     payload = {'tree': 'latestRun[id]'}
     if first_run:
-        # If this is the first run for a job, pull all builds from Jenkins,
-        # otherwise use the standard jenkins call which limits to 100 results
-        # (the assumption is we're running regularly enough after the first run
-        # that those 100 results is sufficient)
-        log.info('%s is a new job, querying all builds', job)
-        payload = {'tree': 'allBuilds[number]'}
+        log.info('%s is a new branch, querying all builds', branch)
 
     log.debug('Retrieving jenkins data from %s', jenkins_url)
     session = JenkinsGet()

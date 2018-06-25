@@ -130,8 +130,11 @@ def main():
     df_builds = projects_to_dataframe(projects)
     df_overall_stats = generate_overall_build_stats(args, df_builds, start_dt)
 
-    html = generate_html(args, df_overall_stats)
-    write_html(args, dir_path, html)
+    for project in get_projects(args):
+        project_data_dir = os.path.join(dir_path, project)
+        for branch in get_branches(args, project):
+            html = generate_html(args, df_overall_stats)
+            write_html(branch, project_data_dir, html)
 
 
 def create_lock(data_file):

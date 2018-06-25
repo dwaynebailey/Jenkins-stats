@@ -434,33 +434,36 @@ def get_runs(args, data_file, project, branch):
         r = session.get(jenkins_url)
         build_data = r.json()
         result = build_data['result']
-        duration = build_data['duration']
+        duration = build_data['durationInMillis']
         if result is None or duration == 0:
             log.debug(
                 'Skipping unfinished run %s (result = %s, duration = %d)',
                 run, result, duration)
             continue
 
-        try:
-            change_hash = find_action(build_data['actions'], 'hudson.plugins.git.util.BuildData')[-1]['buildsByBranchName'][job]['revision']['SHA1']
-        except (KeyError, IndexError):
-            change_hash = None
+        change_hash = build_data['commitId']
 
-        timestamp = int(build_data['timestamp'])
-        build_time = time.strftime('%Y-%m-%d %H:%M:%S',
-                                   time.localtime(timestamp / 1000))
-        build_duration_sec = int(build_data['duration'] / 1000)
-        end_timestamp = timestamp + int(build_data['duration'])
-        build_end_time = time.strftime('%Y-%m-%d %H:%M:%S',
-                                       time.localtime(end_timestamp / 1000))
+        build_start_time = build_data['startTime']
+        build_duration_sec = int(build_data['durationInMillis'] / 1000)
+        build_end_time = build_data['endTime']
 
-        # TODO remove hard-coding of url
-        build = {'number': number,
+        failed_at = None
+        if result == 'FAILURE':
+            jenkins_url = '%s/blue/rest/organizations/jenkins/pipelines/HMCTS/pipelines/%s/branches/%s/runs/%s/nodes/' % (
+                args.jenkins_url, project, branch, run)
+            payload = {'tree': 'displayName,result'}
+            r = session.get(jenkins_url, payload)
+            for node in r.json():
+                if node['result'] == 'FAILURE':
+                    failed_at = node['displayName']
+
+        build = {'run': run,
                  'project': project,
-                 'branch': job,
+                 'branch': branch,
                  'change_hash': change_hash,
                  'result': result,
-                 'start_time': build_time,
+                 'failed_at': failed_at,
+                 'start_time': build_start_time,
                  'end_time': build_end_time,
                  'duration_sec': build_duration_sec,
                  }

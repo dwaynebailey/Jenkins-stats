@@ -199,9 +199,15 @@ def generate_overall_build_stats(args, df, start_dt):
     df_stats['success'] = df.success.resample(sample_window).sum()
     df_stats['failure'] = df.failure.resample(sample_window).sum()
     df_stats['aborted'] = df.aborted.resample(sample_window).sum()
+    df_stats['failure_infr'] = df.failure_infr.resample(sample_window).sum()
+    df_stats['failure_ours'] = df.failure_ours.resample(sample_window).sum()
+    df_stats['failure_other'] = df.failure_other.resample(sample_window).sum()
     df_stats['total'] = df_stats.success + df_stats.failure
     df_stats['success_pct'] = df_stats.success / df_stats.total * 100
     df_stats['failure_pct'] = df_stats.failure / df_stats.total * 100
+    df_stats['failure_infr_pct'] = df_stats.failure_infr / df_stats.total * 100
+    df_stats['failure_ours_pct'] = df_stats.failure_ours / df_stats.total * 100
+    df_stats['failure_other_pct'] = df_stats.failure_other / df_stats.total * 100
     df_stats['duration_sec_min'] = df.duration_sec.resample(sample_window).min()
     df_stats['duration_sec_max'] = df.duration_sec.resample(sample_window).max()
     df_stats['duration_sec_avg'] = df.duration_sec.resample(
@@ -504,12 +510,28 @@ def plot_status(df):
             color='#2ca02c'
         )
     )
-    failure = go.Bar(
+    failure_infr = go.Bar(
         x=df.index,
-        y=df['failure_pct'],
-        name='% Failure',
+        y=df['failure_infr_pct'],
+        name='% Failure Infrastructure',
         marker=dict(
             color='#de3c0c'
+        )
+    )
+    failure_ours = go.Bar(
+        x=df.index,
+        y=df['failure_ours_pct'],
+        name='% Failure Ours',
+        marker=dict(
+            color='#ed960b'
+        )
+    )
+    failure_other = go.Bar(
+        x=df.index,
+        y=df['failure_other_pct'],
+        name='% Failure Unknown',
+        marker=dict(
+            color='#dddddd'
         )
     )
     jobs = go.Scatter(
@@ -521,7 +543,7 @@ def plot_status(df):
             color='#1b689d'
         )
     )
-    data = [success, failure, jobs]
+    data = [success, failure_infr, failure_ours, failure_other, jobs]
 
     layout = go.Layout(
         barmode='stack',

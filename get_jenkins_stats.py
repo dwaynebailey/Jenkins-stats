@@ -399,7 +399,7 @@ def get_runs(args, data_file, project, branch):
                 builds[number] = build
     except (IOError, EOFError):
         first_run = True
-        log.warn('%s not found, creating new data_file', data_file)
+        log.warning('%s not found, creating new data_file', data_file)
 
     log.info('Read %d builds from %s', len(builds), data_file)
 

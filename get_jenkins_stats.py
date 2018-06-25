@@ -348,9 +348,9 @@ class JenkinsGet:
 
 def get_projects(args):
     """Return a list of valid projects for the server"""
-    # https://build.platform.hmcts.net/job/HMCTS/api/json?tree=jobs[name,url]
-    payload = {'tree': 'jobs[name,url]'}
-    jenkins_url = '%s/api/json' % (args.jenkins_url)
+    # https://build.platform.hmcts.net/blue/rest/organizations/jenkins/pipelines/HMCTS/pipelines/?tree=name
+    payload = {'tree': 'name'}
+    jenkins_url = '%s/blue/rest/organizations/jenkins/pipelines/HMCTS/pipelines/' % (args.jenkins_url)
     log.debug('Retrieving projects from %s', jenkins_url)
     session = JenkinsGet()
     r = session.get(jenkins_url, params=payload)
@@ -367,9 +367,10 @@ def get_projects(args):
 
 def get_jobs(args, project):
     """Return a list of valid jobs for a project"""
-    # https://build.platform.hmcts.net/job/HMCTS/job/ccd-data-store-api/api/json?tree=jobs[name,url]
-    payload = {'tree': 'jobs[name,url]'}
-    jenkins_url = '%s/job/%s/api/json' % (args.jenkins_url, project)
+    # https://build.platform.hmcts.net/blue/rest/organizations/jenkins/pipelines/HMCTS/pipelines/ccd-data-store-api/branches/?tree=name
+    payload = {'tree': 'name'}
+    jenkins_url = '%s/blue/rest/organizations/jenkins/pipelines/HMCTS/pipelines/%s/branches/' % (
+    args.jenkins_url, project)
     log.debug('Retrieving jobs from %s', jenkins_url)
     session = JenkinsGet()
     r = session.get(jenkins_url, params=payload)

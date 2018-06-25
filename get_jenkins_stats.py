@@ -161,8 +161,8 @@ def create_lock(data_file):
         exit(1)
 
 
-def write_html(args, dir_path, html):
-    file_name = '%s.html' % args.jenkins_job
+def write_html(branch, dir_path, html):
+    file_name = '%s.html' % branch
     file_path = os.path.join(dir_path, file_name)
     with open(file_path, 'w') as f:
         f.write(html)

@@ -95,6 +95,10 @@ def main():
                                 os.path.splitext(os.path.basename(script_name))[0])
     parser.add_argument('--no-log', dest='no_logfile', action='store_true',
                         help='Do not write log output to file.')
+    parser.add_argument('-g', '--sheet',
+                        default=os.getenv('GOOGLE_SHEET', ''),
+                        help='Google spreadsheet for data appending and reason override '
+                             '(or set GOOGLE_SHEET environment variable)')
     args = parser.parse_args()
     configure_logging(args)
 
@@ -127,7 +131,7 @@ def main():
             create_lock(data_file)
             projects[project][branch] = get_runs(args, data_file, project, branch)
 
-    df_builds = projects_to_dataframe(projects)
+    df_builds = projects_to_dataframe(args, projects)
     df_overall_stats = generate_overall_build_stats(args, df_builds, start_dt)
 
     for project in get_projects(args):
@@ -232,7 +236,7 @@ def generate_overall_build_stats(args, df, start_dt):
     return df_stats
 
 
-def projects_to_dataframe(projects):
+def projects_to_dataframe(args, projects):
     """
     Convert build data to pandas dataframe for subsequent analysis
     """
@@ -278,7 +282,7 @@ def projects_to_dataframe(projects):
                 build_data['duration_sec'].append(build['duration_sec'])
 
                 infr, ours, other = False, False, False
-                override = failure_overrides(project, branch, number)
+                override = failure_override(args, project_name, branch_name, number)
                 if (build['failed_at'] is None
                         or override == 'other'):
                     if failure:
@@ -287,12 +291,13 @@ def projects_to_dataframe(projects):
                       or build['failed_at'].startswith('Deploy -')
                       or build['failed_at'].startswith('Promote -')
                       or build['failed_at'].startswith('Build Infrastructure -')
-                      or override == 'infr'):
+                      or override == 'Infrastructure'):
                     infr = True
                 elif (build['failed_at'] in ('Build', 'Test', 'Sonar Scan', 'Security Checks')
                       or build['failed_at'].startswith('Smoke Test -')
                       or build['failed_at'].startswith('Functional Test -')
-                      or override == 'ours'):
+                      or override == 'Tests'
+                      or override == 'Us'):
                     ours = True
                 else:
                     log.critical('Unknown run node on project %s, branch %s, run %s: %s',
@@ -313,11 +318,57 @@ def projects_to_dataframe(projects):
     return df
 
 
-override_file = None
+def get_sheet(sheet_id, range):
+    from apiclient.discovery import build
+    from httplib2 import Http
+    from oauth2client import file, client, tools
+
+    # Setup the Sheets API
+    SCOPES = 'https://www.googleapis.com/auth/spreadsheets.readonly'
+    store = file.Storage('credentials.json')
+    creds = store.get()
+    if not creds or creds.invalid:
+        flow = client.flow_from_clientsecrets('client_secret.json', SCOPES)
+        creds = tools.run_flow(flow, store)
+    service = build('sheets', 'v4', http=creds.authorize(Http()))
+
+    # Call the Sheets API
+    result = service.spreadsheets().values().get(spreadsheetId=sheet_id,
+                                                 range=range).execute()
+    values = result.get('values', [])
+    if not values:
+        log.error('No spreadsheet data found.')
+        return None
+    else:
+        return values
 
 
-def failure_overrides(project, branch, run):
+records = None
+
+
+def find_record(args, project, branch, run):
+    global records
+    if records is None:
+        records = get_sheet(args.sheet, 'Data!B2:L')
+    for row in records:
+        found = (
+                len(row) >= 4
+                and row[0] == project
+                and row[1] != 'sandbox'
+                and row[2] == branch
+                and row[3] == str(run)
+        )
+        if found:
+            log.debug('Overriding project %s, branch %s, run %d as an "%s"', project, branch, run, row[9])
+            return row
     return None
+
+
+def failure_override(args, project, branch, run):
+    record = find_record(args, project, branch, run)
+    if record is None:
+        return None
+    return record[9]
 
 
 class Result:

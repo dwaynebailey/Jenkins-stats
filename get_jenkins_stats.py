@@ -119,13 +119,13 @@ def main():
         projects[project] = {}
         if not os.path.exists(project_data_dir):
             os.makedirs(project_data_dir)
-        for job in get_jobs(args, project):
-            data_file = os.path.join(project_data_dir, '%s.json' % job)
+        for branch in get_branches(args, project):
+            data_file = os.path.join(project_data_dir, '%s.json' % branch)
             # lock the data-file before we do anything else, since we don't want
             # another writer modifying the file after we've read but before we've
             # written (this is all redundant if we use a db)
             create_lock(data_file)
-            projects[project][job] = get_builds(args, data_file, project, job)
+            projects[project][branch] = get_runs(args, data_file, project, branch)
 
     df_builds = projects_to_dataframe(projects)
     df_overall_stats = generate_overall_build_stats(args, df_builds, start_dt)
@@ -359,13 +359,13 @@ def get_projects(args):
         exit(1)
     jenkins_data = r.json()
     projects = list()
-    for project in jenkins_data['jobs']:
+    for project in jenkins_data:
         if project['name'].startswith(args.jenkins_project):
             projects.append(project['name'])
     return projects
 
 
-def get_jobs(args, project):
+def get_branches(args, project):
     """Return a list of valid jobs for a project"""
     # https://build.platform.hmcts.net/blue/rest/organizations/jenkins/pipelines/HMCTS/pipelines/ccd-data-store-api/branches/?tree=name
     payload = {'tree': 'name'}
@@ -378,11 +378,11 @@ def get_jobs(args, project):
         log.critical("Failed to fetch from %s", jenkins_url)
         exit(1)
     jenkins_data = r.json()
-    jobs = []
-    for job in jenkins_data['jobs']:
-        if job['name'].lower().startswith(args.jenkins_job):
-            jobs.append(job['name'])
-    return jobs
+    branches = []
+    for branch in jenkins_data:
+        if branch['name'].lower().startswith(args.jenkins_job):
+            branches.append(branch['name'])
+    return branches
 
 
 def get_builds(args, data_file, project, job):

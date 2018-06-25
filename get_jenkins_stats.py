@@ -565,15 +565,15 @@ def plot_duration(df):
     plot_title = 'Duration for successful jobs'
 
     percentile90 = go.Scatter(
-            x=df.index,
-            y=df['success_duration_min_90th'],
-            mode='lines+markers',
-            name='Duration (90th percentile)')
+        x=df.index,
+        y=df['success_duration_min_90th'],
+        mode='lines+markers',
+        name='Duration (90th percentile)')
     percentile50 = go.Scatter(
-            x=df.index,
-            y=df['success_duration_min_50th'],
-            mode='lines+markers',
-            name='Duration (50th percentile)')
+        x=df.index,
+        y=df['success_duration_min_50th'],
+        mode='lines+markers',
+        name='Duration (50th percentile)')
 
     data = [percentile50, percentile90]
     layout = go.Layout(

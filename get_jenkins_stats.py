@@ -59,7 +59,7 @@ def main():
     parser = argparse.ArgumentParser()
     script_name = __file__
     parser.set_defaults(
-            script_dir=os.path.abspath((os.path.dirname(script_name))))
+        script_dir=os.path.abspath((os.path.dirname(script_name))))
     parser.add_argument('-s', '--server', dest='jenkins_url',
                         default=os.getenv('JENKINS_URL', ''),
                         help='Jenkins server URL (or set JENKINS_URL environment variable)',
@@ -92,7 +92,7 @@ def main():
                         (default: %(default)s).
                         ''',
                         default='%s.log' %
-                        os.path.splitext(os.path.basename(script_name))[0])
+                                os.path.splitext(os.path.basename(script_name))[0])
     parser.add_argument('--no-log', dest='no_logfile', action='store_true',
                         help='Do not write log output to file.')
     args = parser.parse_args()

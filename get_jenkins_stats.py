@@ -131,6 +131,7 @@ def main():
             create_lock(data_file)
             projects[project][branch] = get_runs(args, data_file, project, branch)
 
+    append_sheet(args, 'Data!A2:J', projects)
     df_builds = projects_to_dataframe(args, projects)
     df_overall_stats = generate_overall_build_stats(args, df_builds, start_dt)
 
@@ -283,26 +284,32 @@ def projects_to_dataframe(args, projects):
 
                 infr, ours, other = False, False, False
                 override = failure_override(args, project_name, branch_name, number)
-                if (build['failed_at'] is None
-                        or override == 'other'):
-                    if failure:
-                        other = True
-                elif (build['failed_at'] in ()
-                      or build['failed_at'].startswith('Deploy -')
-                      or build['failed_at'].startswith('Promote -')
-                      or build['failed_at'].startswith('Build Infrastructure -')
-                      or override == 'Infrastructure'):
-                    infr = True
-                elif (build['failed_at'] in ('Build', 'Test', 'Sonar Scan', 'Security Checks')
-                      or build['failed_at'].startswith('Smoke Test -')
-                      or build['failed_at'].startswith('Functional Test -')
-                      or override == 'Tests'
-                      or override == 'Us'):
-                    ours = True
+                if override:
+                    if override in ('Infrastructure'):
+                        infr = True
+                    elif override in ('Tests', 'Us'):
+                        ours = True
+                    else:
+                        log.critical('Unknown override value in project %s, branch %s, run %s: %s',
+                                     project_name, branch_name, number, override)
+                        exit(1)
                 else:
-                    log.critical('Unknown run node on project %s, branch %s, run %s: %s',
-                                 project_name, branch_name, number, build['failed_at'])
-                    exit(1)
+                    if build['failed_at'] is None:
+                        if failure:
+                            other = True
+                    elif (build['failed_at'] in ('Checkout')
+                          or build['failed_at'].startswith('Deploy -')
+                          or build['failed_at'].startswith('Promote -')
+                          or build['failed_at'].startswith('Build Infrastructure -')):
+                        infr = True
+                    elif (build['failed_at'] in ('Build', 'Test', 'Sonar Scan', 'Security Checks')
+                          or build['failed_at'].startswith('Smoke Test -')
+                          or build['failed_at'].startswith('Functional Test -')):
+                        ours = True
+                    else:
+                        log.critical('Unknown run node on project %s, branch %s, run %s: %s',
+                                     project_name, branch_name, number, build['failed_at'])
+                        exit(1)
                 build_data['failure_infr'].append(infr)
                 build_data['failure_ours'].append(ours)
                 build_data['failure_other'].append(other)
@@ -318,13 +325,61 @@ def projects_to_dataframe(args, projects):
     return df
 
 
+def append_sheet(args, range, projects):
+    values = []
+    for project_name, project in projects.items():
+        for branch_name, branch in project.items():
+            for number, build in branch.items():
+                record = find_record(args, project_name, branch_name, number)
+                if record:
+                    continue
+                if build['result'] != 'FAILURE':
+                    continue
+                link = '%sblue/organizations/jenkins/HMCTS%%2F%s/detail/%s/%s/pipeline/' % (args.jenkins_url, project_name, branch_name, number)
+                values.append([
+                    link,
+                    project_name,
+                    '',
+                    branch_name,
+                    number,
+                    build['change_hash'],
+                    build['duration_sec'],
+                    build['start_time'],
+                    build['failed_at'],
+                    # Num fails
+                ])
+
+    body = {
+        'values': values
+    }
+
+    from apiclient.discovery import build
+    from httplib2 import Http
+    from oauth2client import file, client, tools
+
+    # Setup the Sheets API
+    SCOPES = 'https://www.googleapis.com/auth/spreadsheets'
+    store = file.Storage('credentials.json')
+    creds = store.get()
+    if not creds or creds.invalid:
+        flow = client.flow_from_clientsecrets('client_secret.json', SCOPES)
+        creds = tools.run_flow(flow, store)
+    service = build('sheets', 'v4', http=creds.authorize(Http()))
+    value_input_option = 'RAW'
+
+    result = service.spreadsheets().values().append(
+        spreadsheetId=args.sheet, range=range,
+        valueInputOption=value_input_option, body=body).execute()
+    log.info('{0} cells appended.'.format(result.get('updates').get('updatedCells')));
+
+
 def get_sheet(sheet_id, range):
     from apiclient.discovery import build
     from httplib2 import Http
     from oauth2client import file, client, tools
 
     # Setup the Sheets API
-    SCOPES = 'https://www.googleapis.com/auth/spreadsheets.readonly'
+    SCOPES = 'https://www.googleapis.com/auth/spreadsheets'
     store = file.Storage('credentials.json')
     creds = store.get()
     if not creds or creds.invalid:
@@ -349,7 +404,7 @@ records = None
 def find_record(args, project, branch, run):
     global records
     if records is None:
-        records = get_sheet(args.sheet, 'Data!B2:L')
+        records = get_sheet(args.sheet, 'Data!B2:O')
     for row in records:
         found = (
                 len(row) >= 4
@@ -359,7 +414,6 @@ def find_record(args, project, branch, run):
                 and row[3] == str(run)
         )
         if found:
-            log.debug('Overriding project %s, branch %s, run %d as an "%s"', project, branch, run, row[9])
             return row
     return None
 
@@ -368,7 +422,10 @@ def failure_override(args, project, branch, run):
     record = find_record(args, project, branch, run)
     if record is None:
         return None
-    return record[9]
+    if len(record) < 12:
+        return None
+    log.debug('Overriding project %s, branch %s, run %d as an "%s"', project, branch, run, record[11])
+    return record[11]
 
 
 class Result:

@@ -65,7 +65,8 @@ def main():
                         help='Jenkins server URL (or set JENKINS_URL environment variable)',
                         required=True)
     parser.add_argument('-p', '--project', dest='jenkins_project',
-                        default=os.getenv('JENKINS_PROJECT', ''),
+                        action='append',
+                        default=os.getenv('JENKINS_PROJECT', []),
                         help='Jenkins project (or set JENKINS_PROJECT environment variable)')
     parser.add_argument('-j', '--job', dest='jenkins_job',
                         default=os.getenv('JENKINS_JOB', ''),
@@ -474,8 +475,9 @@ def get_projects(args):
     jenkins_data = r.json()
     projects = list()
     for project in jenkins_data:
-        if project['name'].startswith(args.jenkins_project):
-            projects.append(project['name'])
+        for args_project in args.jenkins_project:
+            if project['name'].startswith(args_project):
+                projects.append(project['name'])
     return projects
 
 
